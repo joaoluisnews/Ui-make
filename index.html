@@ -41,8 +41,9 @@
 <button class="btn-remove" onclick="removeSelected()">Remover selecionado</button>
 </div>
 <hr>
-<h4>Luau Code</h4>
-<textarea id="luauCode" readonly></textarea>
+<h4>Luau Code (Edite e clique Atualizar)</h4>
+<textarea id="luauCode"></textarea>
+<button onclick="applyCode()">Atualizar Canvas</button>
 </div>
 <div id="canvas" onclick="deselect()"></div>
 <script>
@@ -107,6 +108,11 @@ if(!result) return '#000000';
 return '#' + result.map(x=>parseInt(x).toString(16).padStart(2,'0')).join('');
 }
 
+function hexToRgb(hex){
+hex = hex.replace('#','');
+return { r:parseInt(hex.substring(0,2),16), g:parseInt(hex.substring(2,4),16), b:parseInt(hex.substring(4,6),16) };
+}
+
 function updateCode(){
 let code='local screenGui = Instance.new("ScreenGui")\nscreenGui.Name = "PreviewGui"\nscreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")\n\n';
 elements.forEach((el,i)=>{
@@ -129,11 +135,43 @@ code+=`${name}.Parent = screenGui\n\n`;
 document.getElementById('luauCode').value = code;
 }
 
-function hexToRgb(hex){
-hex = hex.replace('#','');
-return { r:parseInt(hex.substring(0,2),16), g:parseInt(hex.substring(2,4),16), b:parseInt(hex.substring(4,6),16) };
+function applyCode(){
+const code = document.getElementById('luauCode').value;
+// Limpa canvas
+elements.forEach(el=>canvas.removeChild(el));
+elements=[];
+selected=null;
+
+// Parse simples do código para recriar elementos
+const lines = code.split('\n');
+let currentEl = null;
+lines.forEach(line=>{
+line=line.trim();
+if(line.startsWith('local') && line.includes('= Instance.new')){
+const type = line.match(/Instance.new("(.*?)")/)[1];
+addElement(type);
+currentEl = elements[elements.length-1];
+} else if(currentEl){
+if(line.includes('.Position = UDim2.fromScale')){
+const nums = line.match(/fromScale((.*?),(.*?))/);
+if(nums){ currentEl.style.left = parseFloat(nums[1])*canvas.clientWidth+'px'; currentEl.style.top = parseFloat(nums[2])*canvas.clientHeight+'px'; }
+} else if(line.includes('.Size = UDim2.fromScale')){
+const nums = line.match(/fromScale((.*?),(.*?))/);
+if(nums){ currentEl.style.width = parseFloat(nums[1])*canvas.clientWidth+'px'; currentEl.style.height = parseFloat(nums[2])*canvas.clientHeight+'px'; }
+} else if(line.includes('.Text =')){
+const t = line.split('=')[1].trim().replace(/"/g,'');
+currentEl.innerText=t;
+} else if(line.includes('.BackgroundColor3 = Color3.fromRGB')){
+const nums = line.match(/fromRGB((\d+),(\d+),(\d+))/);
+if(nums){ currentEl.style.background = `rgb(${nums[1]},${nums[2]},${nums[3]})`; }
+} else if(line.includes('.TextColor3 = Color3.fromRGB')){
+const nums = line.match(/fromRGB((\d+),(\d+),(\d+))/);
+if(nums){ currentEl.style.color = `rgb(${nums[1]},${nums[2]},${nums[3]})`; }
+}
+}
+});
+updateCode();
 } </script>
 
 </body>
-  </html>
-  
+</html>
