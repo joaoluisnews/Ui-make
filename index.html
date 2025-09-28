@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roblox UI Live Editor</title>
+<style>
+  body { margin:0; font-family: sans-serif; display:flex; height:100vh; background:#f0f0f0; }
+  #sidebar { width:260px; background:#fff; border-right:1px solid #ccc; padding:10px; box-sizing:border-box; overflow:auto; }
+  #canvas { flex:1; background:#0f172a; position:relative; margin:10px; border-radius:8px; overflow:hidden; }
+  .element { position:absolute; display:flex; align-items:center; justify-content:center; border-radius:6px; cursor:pointer; }
+  .selected { outline:2px solid #60a5fa; }
+  #properties { margin-top:10px; }
+  input, select, textarea { width:100%; margin-bottom:5px; box-sizing:border-box; }
+  #luauCode { height:150px; }
+  button { margin-bottom:5px; width:100%; padding:6px; border:none; border-radius:4px; cursor:pointer; }
+  .btn-add { background:#4f46e5; color:#fff; }
+  .btn-remove { background:#ef4444; color:#fff; }
+</style>
+</head>
+<body>
+<div id="sidebar">
+<h3>Adicionar Elementos</h3>
+<button class="btn-add" onclick="addElement('Frame')">Frame</button>
+<button class="btn-add" onclick="addElement('TextLabel')">TextLabel</button>
+<button class="btn-add" onclick="addElement('TextButton')">TextButton</button>
+<button class="btn-add" onclick="addElement('TextBox')">TextBox</button>
+<button class="btn-add" onclick="addElement('ImageLabel')">ImageLabel</button>
+<button class="btn-add" onclick="addElement('ScrollingFrame')">ScrollingFrame</button>
+<hr>
+<div id="properties">
+<h4>Propriedades</h4>
+<label>Text:</label><input id="propText" oninput="updateProp('Text', this.value)"><br>
+<label>Background:</label><input type="color" id="propBg" oninput="updateProp('BackgroundColor3', this.value)"><br>
+<label>Text Color:</label><input type="color" id="propTextColor" oninput="updateProp('TextColor3', this.value)"><br>
+<label>Size X (0-1):</label><input type="number" id="propSizeX" step="0.01" min="0" max="1" oninput="updateProp('SizeX', parseFloat(this.value))"><br>
+<label>Size Y (0-1):</label><input type="number" id="propSizeY" step="0.01" min="0" max="1" oninput="updateProp('SizeY', parseFloat(this.value))"><br>
+<label>Position X (0-1):</label><input type="number" id="propPosX" step="0.01" min="0" max="1" oninput="updateProp('PosX', parseFloat(this.value))"><br>
+<label>Position Y (0-1):</label><input type="number" id="propPosY" step="0.01" min="0" max="1" oninput="updateProp('PosY', parseFloat(this.value))"><br>
+<button class="btn-remove" onclick="removeSelected()">Remover selecionado</button>
+</div>
+<hr>
+<h4>Luau Code</h4>
+<textarea id="luauCode" readonly></textarea>
+</div>
+<div id="canvas" onclick="deselect()"></div>
+<script>
+let elements = [];
+let selected = null;
+const canvas = document.getElementById('canvas');
+
+function addElement(type){
+const el = document.createElement('div');
+el.classList.add('element');
+el.dataset.type = type;
+el.dataset.id = Date.now();
+el.style.width = '50%';
+el.style.height = '6%';
+el.style.left = '25%';
+el.style.top = elements.length*8 + '%';
+el.style.background = '#1f2937';
+el.style.color = '#ffffff';
+el.innerText = (type==='TextLabel'||type==='TextButton'||type==='TextBox')?type:'';
+el.onclick = (e)=>{ e.stopPropagation(); selectElement(el); };
+canvas.appendChild(el);
+elements.push(el);
+selectElement(el);
+updateCode();
+}
+
+function selectElement(el){
+if(selected) selected.classList.remove('selected');
+selected = el;
+el.classList.add('selected');
+document.getElementById('propText').value = el.innerText || '';
+document.getElementById('propBg').value = rgbToHex(el.style.backgroundColor);
+document.getElementById('propTextColor').value = rgbToHex(el.style.color);
+document.getElementById('propSizeX').value = parseFloat(el.style.width)/canvas.clientWidth;
+document.getElementById('propSizeY').value = parseFloat(el.style.height)/canvas.clientHeight;
+document.getElementById('propPosX').value = parseFloat(el.style.left)/canvas.clientWidth;
+document.getElementById('propPosY').value = parseFloat(el.style.top)/canvas.clientHeight;
+}
+
+function deselect(){ if(selected){ selected.classList.remove('selected'); selected=null; } }
+
+function removeSelected(){ if(selected){ canvas.removeChild(selected); elements = elements.filter(e=>e!==selected); selected=null; updateCode(); } }
+
+function updateProp(prop, value){
+if(!selected) return;
+switch(prop){
+case 'Text': selected.innerText = value; break;
+case 'BackgroundColor3': selected.style.background = value; break;
+case 'TextColor3': selected.style.color = value; break;
+case 'SizeX': selected.style.width = (value*canvas.clientWidth)+'px'; break;
+case 'SizeY': selected.style.height = (value*canvas.clientHeight)+'px'; break;
+case 'PosX': selected.style.left = (value*canvas.clientWidth)+'px'; break;
+case 'PosY': selected.style.top = (value*canvas.clientHeight)+'px'; break;
+}
+updateCode();
+}
+
+function rgbToHex(rgb){
+if(!rgb) return '#000000';
+const result = rgb.match(/\d+/g);
+if(!result) return '#000000';
+return '#' + result.map(x=>parseInt(x).toString(16).padStart(2,'0')).join('');
+}
+
+function updateCode(){
+let code='local screenGui = Instance.new("ScreenGui")\nscreenGui.Name = "PreviewGui"\nscreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")\n\n';
+elements.forEach((el,i)=>{
+const name = el.dataset.type+i;
+code+=`local ${name} = Instance.new("${el.dataset.type}")\n`;
+const left = parseFloat(el.style.left)/canvas.clientWidth;
+const top = parseFloat(el.style.top)/canvas.clientHeight;
+const width = parseFloat(el.style.width)/canvas.clientWidth;
+const height = parseFloat(el.style.height)/canvas.clientHeight;
+const bg = el.style.background;
+const color = el.style.color;
+code+=`${name}.AnchorPoint = Vector2.new(0,0)\n`;
+code+=`${name}.Position = UDim2.fromScale(${left.toFixed(3)}, ${top.toFixed(3)})\n`;
+code+=`${name}.Size = UDim2.fromScale(${width.toFixed(3)}, ${height.toFixed(3)})\n`;
+if(el.innerText) code+=`${name}.Text = "${el.innerText}"\n`;
+code+=`${name}.BackgroundColor3 = Color3.fromRGB(${hexToRgb(bg).r}, ${hexToRgb(bg).g}, ${hexToRgb(bg).b})\n`;
+code+=`${name}.TextColor3 = Color3.fromRGB(${hexToRgb(color).r}, ${hexToRgb(color).g}, ${hexToRgb(color).b})\n`;
+code+=`${name}.Parent = screenGui\n\n`;
+});
+document.getElementById('luauCode').value = code;
+}
+
+function hexToRgb(hex){
+hex = hex.replace('#','');
+return { r:parseInt(hex.substring(0,2),16), g:parseInt(hex.substring(2,4),16), b:parseInt(hex.substring(4,6),16) };
+} </script>
+
+</body>
+  </html>
+  
